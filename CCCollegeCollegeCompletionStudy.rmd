@@ -2,8 +2,11 @@
 title: "California Community College Completion Project"
 author: "Aeron Zentner"
 date: "04/01/2020"
-output: 
-  pdf_document: 
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  pdf_document:
     fig_caption: yes
     toc: yes
 ---
@@ -27,7 +30,7 @@ All the data was collect from the various data calls from the (CCCCO) public dat
 
 The data variables of the study include college size, annual unduplicated headcount, full-time faculty, student race, student sex, traditional students, course load, financial aid, course success and retention. 
 
-##College Size, Headcount, and Full-time Faculty
+### College Size, Headcount, and Full-time Faculty
 
 College size (size) was tabulated based on the CCCCO’s framework associated the amount of full-time equivalent students (FTES) per institution. The data was collected over the six-year period from July 2011 to June 2017 to determine the average FTES per college. The colleges were categorized into three sizes (Small (1) = < 10,000 FTES, Medium (2) 10,000-20,000 FTES; Large (3) >20,000 FTES). 
 
