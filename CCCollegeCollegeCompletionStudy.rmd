@@ -1,0 +1,279 @@
+---
+title: "California Community College Completion Project"
+author: "Aeron Zentner"
+date: "04/01/2020"
+output: 
+  pdf_document: 
+    fig_caption: yes
+    toc: yes
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction 
+
+The state of California has the largest two-year college system with 114 colleges and has a set of focused goals to increase degree and certificate attainment and transfer to four-year universities with the end goal to support economic and social mobility. To ensure that colleges are making progress towards meeting these goals the California Community College Chancellor’s Office (CCCCO) has established a set of accountability metrics. These metrics focus on a range of student achievement and institutional effectiveness outcomes. The outcomes are centralized around degree and certificate attainment and transfer to four-year universities and are noted in the system as the completion rate metric. 
+
+## Research Question 
+
+The research question of the study was “What institutional characteristics, student characteristics, and academic performance outcomes influence completion rates?”
+
+The aim of the study was to develop a model to determine which combination of variables could best predict completion rates. The completion rate was based on the percentage of degree, certificate and/or transfer-seeking students starting first-time in 2011-12 tracked for six years through 2016-17 who completed a degree, certificate or transfer-related outcomes.
+
+## Data
+
+All the data was collect from the various data calls from the (CCCCO) public data mart (https://datamart.cccco.edu/DataMart.aspx) on March 29 and 30, 2020. The comprehensive data file of college data, student characteristics, and courses outcomes is stored in Github and includes that data that contributed the raw data for the model. All data was anonymized to avoid any bias in the study. Note only 113 of the 114 college were included as one college did not have data reporting for the completion rate.
+
+The data variables of the study include college size, annual unduplicated headcount, full-time faculty, student race, student sex, traditional students, course load, financial aid, course success and retention. 
+
+##College Size, Headcount, and Full-time Faculty
+
+College size (size) was tabulated based on the CCCCO’s framework associated the amount of full-time equivalent students (FTES) per institution. The data was collected over the six-year period from July 2011 to June 2017 to determine the average FTES per college. The colleges were categorized into three sizes (Small (1) = < 10,000 FTES, Medium (2) 10,000-20,000 FTES; Large (3) >20,000 FTES). 
+
+College unduplicated headcount (hc) represents the unduplicated number of students which attended a college during an academic year (July 1 to June 30) from July 2011 to June 2017.The data was collected from the CCCCO data mart in an aggregated form and synthesized by mean annual headcount prior to entering the data into the model. 
+
+The data was collected from the CCCCO data mart over the six-year period from fall 2011 to fall 2016 and calculated to determine the average full-time faculty (ftf) per college per year during the timeframe.
+
+### Student Characteristics 
+
+Student race data was collected for the 2011 cohort year and utilized the CCCCO’s establish race categories of African American/ black (aabl), American Indian/ Alaskan Native (aiak), Asian/ Filipino (asian), Hispanic (hisp), Pacific Islander (paci) + Multiple Ethnicity / Other (multi), and white non-Hispanic (white). The data was calculated based on proportion of unduplicated headcount by race for the cohort year. 
+
+Student sex data was collected for the 2011 cohort year and utilized the CCCCO’s establish sex categories of female (female), male (male), and other/unknown (xgender). The data was calculated based on proportion of unduplicated headcount by sex for the cohort year.
+
+Traditional student data was collected for the 2011 cohort year and utilized the CCCCO’s establish age categories to determine the number of students which met the definition of being 24 or younger (trad). The data was calculated based on proportion of unduplicated headcount by traditional students for the cohort year.
+
+Full-time equivalent student course load proportions (ftesps) was collected form the annual full-time equivalent student (FTES) number divided by unduplicated headcount to estimate the average ftesps over the six-year period.  
+
+Financial Aid (finaid) data was from the CCCCO data mart under the California Promise tuition waiver grant collected. The California Promise uses an income-based criterion to award the grants and spans further than Title IV federal financial aid. The variable is typically used for flagging low-income students in other statewide projects. The data was calculated based on proportion of unduplicated headcount by California Promise grant recipients across the six-year period.
+
+### Course Outcomes
+
+Course success rates (s1117) were collected from the student outcomes data sets in the CCCCO data mart. Course success is calculated based on the number of students that receive a passing grade (A, B, C, Pass) out of the total student population. This metric was calculated across the six-year period to determine and overall rate of success by college during the timeframe.
+
+Course retention rates (r1117) were collected from the student outcomes data sets in the CCCCO data mart. Course retention is calculated based on the number of students that receive a grade (A, B, C, D, F, No Pass, Pass) other than a withdraw (W) grade out of the total student population. This metric was calculated across the six-year period to determine and overall rate of retention by college during the timeframe.
+
+## Project Setup
+
+```{r cars}
+library(tidyverse)
+library(dplyr)
+library(DescTools)
+library(caret)
+library(data.table)
+library(car)
+library(readxl)
+library(kableExtra)
+```
+
+## Data Import and Partitioning
+
+The original data was stored in a Microsoft Excel file data imported into R. The data was primarily categorized as double date with the exception to college id which was categorical. 
+
+```{r pressure, echo=FALSE}
+# Read the data file in
+College <- read_excel("College.xlsx")
+
+# View the data table
+View(College)
+```
+A summary of the data was created to review the means and data distribution. Additionally, the standard deviation for completion rate (ycomp) was calculated along with a scatter plot of the ycomp outcomes. 
+
+```{r}
+# Calculate summary data for the overall dataset
+summary(College)
+
+# Calculate standard deviation for completion rate (ycomp)
+sd(College$ycomp)
+
+# Create a scatter plot of the completion rate data (ycomp)
+dotchart(College$ycomp,labels=row.names(College$CollegeCode),cex=.7,
+          main="Completion Rate by College",
+          xlab="Completion Rate")
+```
+The data was split into a 25/75 for training and testing data. The data was also reviewed and validated to ensure the partitioning was correct.
+```{r}
+# Training set will be 25% of College dataset
+set.seed(3, sample.kind="Rounding")
+
+test_index <- createDataPartition(y = College$ycomp, times = 1, p = 0.25, list = FALSE)
+testing<- College[-test_index,]
+training<- College[test_index,]
+
+# Validate the data in the training set
+dim(training)
+
+# Validate the data in the testing set
+dim(testing)
+```
+## Model Development
+
+Seven multivariate models were developed to measure the level of influence that college data, student characteristics, and courses outcomes have on the predictability of completion rates. 
+
+### Model 1
+Model 1 assessed how college size, headcount and traditional student proportions predicted completion rates.
+```{r}
+# Set up multivariate model 1 with college size, headcount and traditional student proportions
+mod1<-lm(ycomp ~ size + hc + trad, data = training)
+
+# Execute model 1
+summary(mod1)
+
+# Set up prediction for model 1
+predictions1<- predict(mod1, testing) 
+
+# Create a residual map for model 1
+resid(mod1)
+
+# Calculate RMSE for model 1
+RMSE(testing$ycomp, predictions1)
+
+#Assess model 1 accuracy 
+sigma(mod1)/mean(College$ycomp)
+```
+### Model 2
+Model 2 assessed how college size, headcount, traditional student proportions, and full-time equivalent student course load proportions predicted completion rates.
+```{r}
+#Set up multivariate model 2 by adding ft equivalent status per student
+mod2<-lm(ycomp ~ size + hc + trad + fteps, data = training)
+
+#Execute model 2
+summary(mod2)
+
+#Set up prediction for model 2
+predictions2<- predict(mod2, testing) 
+
+#Create a residual map for model 2
+resid(mod2)
+
+#Calculate RMSE for model 2
+RMSE(testing$ycomp, predictions2)
+
+# Assess model 2 accuracy 
+sigma(mod2)/mean(College$ycomp)
+```
+### Model 3
+Model 3 assessed how college size, headcount, traditional student proportions, full-time equivalent student course load proportions, course success rates, and retention rates predicted completion rates.
+```{r}
+# Set up multivariate model 3 by adding course success and retention rates
+mod3<-lm(ycomp ~ size + + hc + trad + fteps + s1117 + r1117, data = training)
+
+# Execute model 3
+summary(mod3)
+
+# Set up prediction for model 3
+predictions3<- predict(mod3, testing) 
+
+# Create a residual map for model 3
+resid(mod3)
+
+# Calculate RMSE for model 3
+RMSE(testing$ycomp, predictions3)
+
+# Assess model 3 accuracy 
+sigma(mod3)/mean(College$ycomp)
+```
+### Model 4
+Model 4 assessed how college size, headcount, traditional student proportions, full-time equivalent student course load proportions, course success rates, retention rates and financial aid proportions predicted completion rates.
+```{r}
+#Set up multivariate model 4 by adding proportion of financial aid 
+mod4<-lm(ycomp ~ size + + hc + trad + fteps + s1117 + r1117 + finaid, data = training)
+
+#Execute model 4
+summary(mod4)
+
+#Set up prediction for model 4
+predictions4<- predict(mod4, testing) 
+
+#Create a residual map for model 4
+resid(mod4)
+
+#Calculate RMSE for model 4
+RMSE(testing$ycomp, predictions4)
+
+#Assess model 4 accuracy 
+sigma(mod4)/mean(College$ycomp)
+```
+### Model 5
+Model 5 assessed how college size, headcount, traditional student proportions, full-time equivalent student course load proportions, course success rates, retention rates, financial aid proportions, and student sex proportions predicted completion rates.
+```{r}
+#Set up multivariate model 5 by adding the proportions of sex 
+mod5<- lm(ycomp ~ size + + hc + trad + fteps + s1117 + r1117 + finaid + male +female +xgender, data = training)
+
+#Execute model 5
+summary(mod5)
+
+#set up prediction for model 5
+predictions5<- predict(mod5, testing) 
+
+#Create a residual map for model 5
+resid(mod5)
+
+#Calculate RMSE for model 5
+RMSE(testing$ycomp, predictions5)
+
+#Assess model 5 accuracy 
+sigma(mod5)/mean(College$ycomp)
+```
+### Model 6
+Model 6 assessed how college size, headcount, traditional student proportions, full-time equivalent student course load proportions, course success rates, retention rates, financial aid, student sex proportions, and student race proportions predicted completion rates.
+```{r}
+#Set up multivariate model 6 by adding the proportions of race  
+mod6<- lm(ycomp ~ size + + hc + trad + fteps + s1117 + r1117 + finaid + male +female +xgender + aabl + aiak + asian + hisp + paci +multi + white, data = training)
+
+#Execute model 6
+summary(mod6)
+
+#set up prediction for model 6
+predictions6<- predict(mod6, testing) 
+
+#Create a residual map for model 6
+resid(mod6)
+
+#Calculate RMSE for Model 6
+RMSE(testing$ycomp, predictions5)
+
+#Assess model 6 accuracy 
+sigma(mod6)/mean(College$ycomp)
+```
+### Model 7
+Model 7 assessed how college size, headcount, traditional student proportions, full-time equivalent student course load proportions, course success rates, retention rates, financial aid, student sex proportions, student race proportions and full-time faculty proportion predicted completion rates.
+```{r}
+#Set up multivariate model 7 by adding the proportion of full-time faculty
+mod7<- lm(ycomp ~ size + + hc + trad + fteps + s1117 + r1117 + finaid + male +female +xgender + aabl + aiak + asian + hisp + paci +multi + white + ftf, data = training)
+
+#Execute model 7
+summary(mod7)
+
+#set up prediction for model 7
+Predictions7<- predict(mod5, testing) 
+
+#Create a residual map for model 7
+resid(mod7)
+
+#Calculate RMSE for Model 7
+RMSE(testing$ycomp, predictions5)
+
+#Assess model 7 accuracy 
+sigma(mod7)/mean(College$ycomp)
+```
+## Model Results
+Based on the assessment of the seven models the result showed that mod7 had the lowest RMSE at 0.07430355. The table below provides the model outputs.While the overall model is considered statatically significant with the greatest influence being associated with tradional student proporion. 
+
+## Overall Data Analysis
+A multivariate analysis was conducted on the overall dataset to determine which variables influenced completion rates. The overall model showed that the higher proportionalities and rates of traditional students, course success, and Asian students showed a statistically significant positive impact on completion rates. In contrast, the higher proportionalities of financial aid, African American/ Black and Hispanic student showed a statistically significant negative impact on completion rates.
+
+```{r}
+#Set up multivariate model 8 which included all variables in the College overall dataset
+mod8<- lm(ycomp ~ size + + hc + trad + fteps + s1117 + r1117 + finaid + male +female +xgender + aabl + aiak + asian + hisp + paci +multi + white + ftf, data = College)
+
+#Execute model 8
+summary(mod8)
+```
+## Limitations and Recommendations for Future Research
+
+While the data models provide a variety of factors that can influence completion, the models are limited by the data available. These limitations are also associated with the cultural, social, economic, political, and technological shifts that have happened over the past three years. Therefore, future research should be conducted to include these factors in addition to the movement of CCCCO statewide projects focused on student equity, AB-705 (diminishing all remedial courses), structured guided pathways, and the California student-centered performance funding formula. These recent shifts will have tremendous implications on the two-year colleges and their outcomes. 
+
+## Conclusion
+
+The aim of the study was to understand which institutional characteristics, student characteristics, and academic performance outcomes influence completion rates. The research used publicly available data to measure a variety of variables over a six-year period to determine which factors were could predict completion rates. Model 7 to have the highest rate of predictability with the lowest RMSE (0.07430355). The overall model (Model 8) provided insight on identifying student characteristics proportionality and course outcome rates, which influence completion rates. 
